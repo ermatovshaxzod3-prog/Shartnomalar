@@ -1,9 +1,32 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shartnomalar Bazasi</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f6f9; padding: 20px; }
+        .container { max-width: 500px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin: 0 auto; }
+        h2 { text-align: center; color: #333; }
+        input, button { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background: #28a745; color: white; font-size: 16px; border: none; cursor: pointer; }
+        button:hover { background: #218838; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Yangi Shartnoma Qo'shish</h2>
+    <input type="text" id="shartnomaNomi" placeholder="Shartnoma nomi yoki raqami">
+    <input type="text" id="mijozNomi" placeholder="Mijoz ismi (F.I.SH)">
+    <button id="saqlashTugmasi">Bazaga Saqlash</button>
+</div>
+
 <!-- Firebase SDK ulash -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  // Firebase loyiha sozlamalari
   const firebaseConfig = {
     apiKey: "AIzaSyA85ThDG_Q8e7ysMAoh52qwEie4X3I3vvk",
     authDomain: "shartnomalar-ecaa4.firebaseapp.com",
@@ -14,9 +37,32 @@
     measurementId: "G-X26E88VJWG"
   };
 
-  // Firebase-ni ishga tushirish
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  console.log("Firebase bazasi muvaffaqiyatli ulandi!");
+  // Ma'lumotni Firebase-ga jo'natish funksiyasi
+  document.getElementById("saqlashTugmasi").addEventListener("click", async () => {
+    const nomi = document.getElementById("shartnomaNomi").value;
+    const mijoz = document.getElementById("mijozNomi").value;
+
+    if(nomi && mijoz) {
+        try {
+            await addDoc(collection(db, "shartnomalar"), {
+                shartnoma_nomi: nomi,
+                mijoz_ismi: mijoz,
+                sana: new Date().toISOString()
+            });
+            alert("Shartnoma muvaffaqiyatli bazaga saqlandi!");
+            document.getElementById("shartnomaNomi").value = "";
+            document.getElementById("mijozNomi").value = "";
+        } catch (e) {
+            alert("Xatolik yuz berdi: " + e);
+        }
+    } else {
+        alert("Iltimos, barcha maydonlarni to'ldiring!");
+    }
+  });
 </script>
+
+</body>
+</html>
