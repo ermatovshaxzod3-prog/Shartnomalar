@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BEKOBOD SHAHAR IIB HUZURIDAGI QO'RIQLASH XIZMATI</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+    
+    <style>
+        :root {
+            --main-yellow: #FFD700;
+            --dark-yellow: #B8860B;
+            --bg-dark: #1a1a1a;
+            --card-bg: #2a2a2a;
+            --text-light: #ffffff;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            margin: 0;
+            padding: 20px;
+        }
+        /* Login Oynasi dizayni */
+        .login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-dark); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 9999;
+        }
+        .login-box {
+            background-color: var(--card-bg); padding: 30px; border-radius: 12px;
+            border: 2px solid var(--main-yellow); text-align: center; width: 320px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+        }
+        .login-box input {
+            width: 90%; padding: 10px; margin: 10px 0; border-radius: 6px;
+            border: 1px solid #555; background: #333; color: #fff; text-align: center;
+        }
+        /* Asosiy Sayt dizayni */
+        .header {
+            display: flex; align-items: center; justify-content: center; gap: 20px;
+            background: linear-gradient(135deg, #333, #222); padding: 20px;
+            border-radius: 12px; border-bottom: 4px solid var(--main-yellow);
+            margin-bottom: 30px; box-shadow: 0 4px 15px rgba(255, 215, 0, 0.2);
+        }
+        .logo {
+            width: 100px; height: 100px; object-fit: contain;
+            filter: drop-shadow(0 0 10px var(--main-yellow));
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 8px var(--main-yellow)); }
+            to { filter: drop-shadow(0 0 18px var(--main-yellow)); }
+        }
+        .header h1 { color: var(--main-yellow); margin: 0; font-size: 24px; text-transform: uppercase; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); text-align: center; }
+        .container { max-width: 1000px; margin: 0 auto; display: none; }
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        button, label.upload-btn {
+            background-color: var(--main-yellow); color: #000; border: none;
+            padding: 12px 20px; font-weight: bold; border-radius: 6px;
+            cursor: pointer; transition: all 0.3s ease; display: inline-block;
+        }
+        button:hover, label.upload-btn:hover { background-color: var(--dark-yellow); color: #fff; transform: translateY(-2px); }
+        input[type="file"] { display: none; }
+        .breadcrumbs { background-color: var(--card-bg); padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; color: var(--main-yellow); }
+        .breadcrumbs span { cursor: pointer; text-decoration: underline; }
+        .explorer { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; background-color: var(--card-bg); padding: 20px; border-radius: 12px; min-height: 300px; border: 1px solid #444; }
+        .item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 15px; background-color: #333; border-radius: 8px; cursor: pointer; transition: background 0.2s; position: relative; }
+        .item:hover { background-color: #444; border-color: var(--main-yellow); }
+        .item .icon { font-size: 48px; margin-bottom: 10px; }
+        .item.folder .icon { color: var(--main-yellow); }
+        .item.file .icon { color: #ff4c4c; }
+        .delete-btn { position: absolute; top: 5px; right: 5px; background: rgba(255,0,0,0.7); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; }
+        .status { color: #FFD700; font-weight: bold; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="login-screen" class="login-screen">
+    <div class="login-box">
+        <img src="IMG_20251217_180511.png" alt="Logo" style="width: 80px; margin-bottom: 10px;">
+        <h3 style="color: var(--main-yellow); margin-top: 0;">TIZIMGA KIRISH</h3>
+        <input type="text" id="username" placeholder="Login">
+        <input type="password" id="password" placeholder="Parol">
+        <button onclick="checkLogin()" style="width: 100%; margin-top: 10px;">KIRISH</button>
+        <p id="login-error" style="color: red; font-size: 12px; display: none; margin-top: 10px;">Login yoki parol xato!</p>
+    </div>
+</div>
+
+<div class="container" id="main-container">
+    <div class="header">
+        <img src="IMG_20251217_180511.png" alt="Logo" class="logo">
+        <h1>Bekobod shahar IIB huzuridagi Qo'riqlash xizmati <br><span style="font-size: 16px; color: #fff;">Markazlashgan Veb-Server Bazasi</span></h1>
+    </div>
+
+    <div id="status-msg" class="status"></div>
+
+    <div class="controls">
+        <button onclick="createFolder()">📁 Yangi Papka ochish</button>
+        <label class="upload-btn">
+            📄 PDF yuklash (Veb-Serverga)
+            <input type="file" id="pdf-input" accept="application/pdf" onchange="handleFileUpload(event)">
+        </label>
+        <button onclick="logout()" style="background-color: #ff4c4c; color: white; margin-left: auto;">Chiqish 🚪</button>
+    </div>
+
+    <div class="breadcrumbs" id="breadcrumbs">
+        Joylashuv: <span onclick="navigateTo('root')">Asosiy menyu</span>
+    </div>
+
+    <div class="explorer" id="explorer"></div>
+</div>
+
+<script>
+    // 🔑 BU YERDA LOGIN VA PAROLNI O'ZGARTIRISHINGIZ MUMKIN
+    const CONFIG_LOGIN = "admin";
+    const CONFIG_PASSWORD = "123"; // O'zingizga ma'qul parolni yozing
+
+    function checkLogin() {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+        
+        if(u === CONFIG_LOGIN && p === CONFIG_PASSWORD) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('main-container').style.display = 'block';
+            initFirebase(); // Login to'g'ri bo'lsa serverga ulanadi
+        } else {
+            document.getElementById('login-error').style.display = 'block';
+        }
+    }
+
+    function logout() {
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('main-container').style.display = 'none';
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+    }
+
+    // Firebase sozlamalari
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+    
+    let database, storage;
+    let currentFolderId = 'root';
+    let pathHistory = ['root'];
+    let globalFileSystem = {};
+
+    function initFirebase() {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+            database = firebase.database();
+            storage = firebase.storage();
+
+            database.ref('fileSystem').on('value', (snapshot) => {
+                globalFileSystem = snapshot.val() || {
+                    root: { id: 'root', name: 'Asosiy menyu', type: 'folder', children: {} }
+                };
+                render();
+            });
+        }
+    }
+
+    function render() {
+        const explorer = document.getElementById('explorer');
+        explorer.innerHTML = '';
+        updateBreadcrumbs();
+        
+        const currentFolder = findFolder(globalFileSystem.root, currentFolderId);
+        if (!currentFolder || !currentFolder.children) return;
+
+        Object.values(currentFolder.children).forEach(item => {
+            const div = document.createElement('div');
+            div.className = `item ${item.type}`;
+            const icon = item.type === 'folder' ? '📁' : '📄';
+            
+            div.innerHTML = `
+                <button class="delete-btn" onclick="deleteItem('${item.id}', '${item.type}', '${item.storagePath || ""}', event)">×</button>
+                <div class="icon">${icon}</div>
+                <div class="name" title="${item.name}">${item.name}</div>
+            `;
+            
+            div.onclick = () => {
+                if (item.type === 'folder') {
+                    currentFolderId = item.id;
+                    pathHistory.push(item.id);
+                    render();
+                } else {
+                    window.open(item.url, '_blank');
+                }
+            };
+            explorer.appendChild(div);
+        });
+    }
+
+    function findFolder(node, id) {
+        if (node.id === id) return node;
+        if (node.children) {
+            for (let key in node.children) {
+                let found = findFolder(node.children[key], id);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    function createFolder() {
+        const name = prompt('Yangi papka nomini kiriting:');
+        if (!name) return;
+        const id = 'folder_' + Date.now();
+        const currentFolder = findFolder(globalFileSystem.root, currentFolderId);
+        if(!currentFolder.children) currentFolder.children = {};
+        currentFolder.children[id] = { id: id, name: name, type: 'folder', children: {} };
+        database.ref('fileSystem').set(globalFileSystem);
+    }
+
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        showStatus("Fayl serverga yuklanmoqda, kuting...");
+        const storagePath = `pdfs/${Date.now()}_${file.name}`;
+        const storageRef = storage.ref(storagePath);
+        
+        storageRef.put(file).then((snapshot) => {
+            return snapshot.ref.getDownloadURL();
+        }).then((url) => {
+            const id = 'file_' + Date.now();
+            const currentFolder = findFolder(globalFileSystem.root, currentFolderId);
+            if(!currentFolder.children) currentFolder.children = {};
+            currentFolder.children[id] = { id: id, name: file.name, type: 'file', url: url, storagePath: storagePath };
+            database.ref('fileSystem').set(globalFileSystem);
+            showStatus("Fayl muvaffaqiyatli yuklandi!");
+        }).catch(error => {
+            alert("Xatolik: " + error.message);
+            showStatus("");
+        });
+    }
+
+    function deleteItem(id, type, storagePath, event) {
+        event.stopPropagation();
+        if(!confirm("O'chirishni xohlaysizmi?")) return;
+        if (type === 'file' && storagePath) {
+            storage.ref(storagePath).delete().catch(err => console.log("Eski fayl o'chirilmadi"));
+        }
+        const currentFolder = findFolder(globalFileSystem.root, currentFolderId);
+        delete currentFolder.children[id];
+        database.ref('fileSystem').set(globalFileSystem);
+    }
+
+    function showStatus(text) { document.getElementById('status-msg').innerText = text; }
+
+    function updateBreadcrumbs() {
+        const bc = document.getElementById('breadcrumbs');
+        bc.innerHTML = 'Joylashuv: ';
+        pathHistory.forEach((folderId, index) => {
+            const folder = findFolder(globalFileSystem.root, folderId);
+            if(!folder) return;
+            const span = document.createElement('span');
+            span.innerText = folder.name;
+            span.onclick = () => navigateTo(folderId, index);
+            bc.appendChild(span);
+            if (index < pathHistory.length - 1) bc.appendChild(document.createTextNode(' ➔ '));
+        });
+    }
+
+    function navigateTo(folderId, index) {
+        currentFolderId = folderId;
+        pathHistory = index !== undefined ? pathHistory.slice(0, index + 1) : ['root'];
+        render();
+    }
+</script>
+</body>
+</html>
