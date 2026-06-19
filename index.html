@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BEKOBOD SHAHAR IIB HUZURIDAGI QO'RIQLASH XIZMATI</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
     
     <style>
         :root {
@@ -72,7 +69,7 @@
         .item .icon { font-size: 48px; margin-bottom: 10px; }
         .item.folder .icon { color: var(--main-yellow); }
         .item.file .icon { color: #ff4c4c; }
-        .delete-btn { position: absolute; top: 5px; right: 5px; background: rgba(255,0,0,0.7); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; }
+        .delete-btn { position: absolute; top: 5px; right: 5px; background: rgba(255,0,0,0.7); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; z-index: 10; }
         .status { color: #FFD700; font-weight: bold; margin-bottom: 10px; }
     </style>
 </head>
@@ -114,9 +111,30 @@
 </div>
 
 <script>
-    // 🔑 BU YERDA LOGIN VA PAROLNI O'ZGARTIRISHINGIZ MUMKIN
     const CONFIG_LOGIN = "admin";
-    const CONFIG_PASSWORD = "123"; // O'zingizga ma'qul parolni yozing
+    const CONFIG_PASSWORD = "123";
+
+    let currentFolderId = 'root';
+    let pathHistory = ['root'];
+    let globalFileSystem = {};
+
+    // Dasturni ishga tushirish
+    function initSystem() {
+        const savedData = localStorage.getItem('localFileSystem');
+        if (savedData) {
+            globalFileSystem = JSON.parse(savedData);
+        } else {
+            globalFileSystem = {
+                root: { id: 'root', name: 'Asosiy menyu', type: 'folder', children: {} }
+            };
+            saveToStorage();
+        }
+        render();
+    }
+
+    function saveToStorage() {
+        localStorage.setItem('localFileSystem', JSON.stringify(globalFileSystem));
+    }
 
     function checkLogin() {
         const u = document.getElementById('username').value;
@@ -125,7 +143,7 @@
         if(u === CONFIG_LOGIN && p === CONFIG_PASSWORD) {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('main-container').style.display = 'block';
-            initFirebase(); // Login to'g'ri bo'lsa serverga ulanadi
+            initSystem();
         } else {
             document.getElementById('login-error').style.display = 'block';
         }
@@ -136,37 +154,6 @@
         document.getElementById('main-container').style.display = 'none';
         document.getElementById('username').value = '';
         document.getElementById('password').value = '';
-    }
-
-    // Firebase sozlamalari
-    const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "YOUR_SENDER_ID",
-        appId: "YOUR_APP_ID"
-    };
-    
-    let database, storage;
-    let currentFolderId = 'root';
-    let pathHistory = ['root'];
-    let globalFileSystem = {};
-
-    function initFirebase() {
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-            database = firebase.database();
-            storage = firebase.storage();
-
-            database.ref('fileSystem').on('value', (snapshot) => {
-                globalFileSystem = snapshot.val() || {
-                    root: { id: 'root', name: 'Asosiy menyu', type: 'folder', children: {} }
-                };
-                render();
-            });
-        }
     }
 
     function render() {
@@ -183,7 +170,7 @@
             const icon = item.type === 'folder' ? '📁' : '📄';
             
             div.innerHTML = `
-                <button class="delete-btn" onclick="deleteItem('${item.id}', '${item.type}', '${item.storagePath || ""}', event)">×</button>
+                <button class="delete-btn" onclick="deleteItem('${item.id}', event)">×</button>
                 <div class="icon">${icon}</div>
                 <div class="name" title="${item.name}">${item.name}</div>
             `;
@@ -194,7 +181,8 @@
                     pathHistory.push(item.id);
                     render();
                 } else {
-                    window.open(item.url, '_blank');
+                    const newTab = window.open();
+                    newTab.document.write('<iframe src="' + item.url + '" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%; position:fixed;" allowfullscreen></iframe>');
                 }
             };
             explorer.appendChild(div);
@@ -219,40 +207,40 @@
         const currentFolder = findFolder(globalFileSystem.root, currentFolderId);
         if(!currentFolder.children) currentFolder.children = {};
         currentFolder.children[id] = { id: id, name: name, type: 'folder', children: {} };
-        database.ref('fileSystem').set(globalFileSystem);
+        saveToStorage();
+        render();
     }
 
     function handleFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
-        showStatus("Fayl serverga yuklanmoqda, kuting...");
-        const storagePath = `pdfs/${Date.now()}_${file.name}`;
-        const storageRef = storage.ref(storagePath);
         
-        storageRef.put(file).then((snapshot) => {
-            return snapshot.ref.getDownloadURL();
-        }).then((url) => {
+        showStatus("Fayl tizimga yuklanmoqda, kuting...");
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Url = e.target.result;
             const id = 'file_' + Date.now();
             const currentFolder = findFolder(globalFileSystem.root, currentFolderId);
+            
             if(!currentFolder.children) currentFolder.children = {};
-            currentFolder.children[id] = { id: id, name: file.name, type: 'file', url: url, storagePath: storagePath };
-            database.ref('fileSystem').set(globalFileSystem);
+            currentFolder.children[id] = { id: id, name: file.name, type: 'file', url: base64Url };
+            
+            saveToStorage();
+            render();
             showStatus("Fayl muvaffaqiyatli yuklandi!");
-        }).catch(error => {
-            alert("Xatolik: " + error.message);
-            showStatus("");
-        });
+            document.getElementById('pdf-input').value = '';
+        };
+        reader.readAsDataURL(file);
     }
 
-    function deleteItem(id, type, storagePath, event) {
+    function deleteItem(id, event) {
         event.stopPropagation();
         if(!confirm("O'chirishni xohlaysizmi?")) return;
-        if (type === 'file' && storagePath) {
-            storage.ref(storagePath).delete().catch(err => console.log("Eski fayl o'chirilmadi"));
-        }
         const currentFolder = findFolder(globalFileSystem.root, currentFolderId);
         delete currentFolder.children[id];
-        database.ref('fileSystem').set(globalFileSystem);
+        saveToStorage();
+        render();
     }
 
     function showStatus(text) { document.getElementById('status-msg').innerText = text; }
